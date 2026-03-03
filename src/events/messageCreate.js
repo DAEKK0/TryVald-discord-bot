@@ -5,16 +5,17 @@ const ownerConfig = require('../utils/ownerConfig');
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    // Ignore DMs (only listen in servers)
     if (!message.guild) return;
 
-    // Check if this server is being listened to
+    // Check if listening to this server
     if (!ownerConfig.isListening(message.guild.id)) return;
+
+    // Check if this channel is ignored
+    if (ownerConfig.isIgnored(message.guild.id, message.channel.id)) return;
 
     const owner = await message.client.users.fetch(config.ownerId).catch(() => null);
     if (!owner) return;
 
-    // Create a rich embed for the forwarded message
     const embed = new EmbedBuilder()
       .setColor('Random')
       .setAuthor({
@@ -28,7 +29,7 @@ module.exports = {
         { name: 'Jump', value: `[Click](${message.url})`, inline: true }
       )
       .setFooter({ text: `Message ID: ${message.id}` })
-      .setTimestamp(message.createdAt); // Original message timestamp
+      .setTimestamp(message.createdAt);
 
     try {
       await owner.send({ embeds: [embed] });

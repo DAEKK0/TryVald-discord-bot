@@ -4,11 +4,11 @@ const path = require('path');
 const filePath = path.join(__dirname, '../data/ownerConfig.json');
 
 function readConfig() {
-  if (!fs.existsSync(filePath)) return { listeningGuilds: [] };
+  if (!fs.existsSync(filePath)) return { listeningGuilds: [], ignoredChannels: {} };
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
-    return { listeningGuilds: [] };
+    return { listeningGuilds: [], ignoredChannels: {} };
   }
 }
 
@@ -17,6 +17,7 @@ function writeConfig(data) {
 }
 
 module.exports = {
+  // Listening guilds
   getListeningGuilds() {
     return readConfig().listeningGuilds || [];
   },
@@ -43,5 +44,37 @@ module.exports = {
   },
   isListening(guildId) {
     return this.getListeningGuilds().includes(guildId);
+  },
+
+  // Ignored channels
+  getIgnoredChannels(guildId) {
+    const data = readConfig();
+    return data.ignoredChannels?.[guildId] || [];
+  },
+  addIgnoredChannel(guildId, channelId) {
+    const data = readConfig();
+    if (!data.ignoredChannels) data.ignoredChannels = {};
+    if (!data.ignoredChannels[guildId]) data.ignoredChannels[guildId] = [];
+    if (!data.ignoredChannels[guildId].includes(channelId)) {
+      data.ignoredChannels[guildId].push(channelId);
+      writeConfig(data);
+      return true;
+    }
+    return false;
+  },
+  removeIgnoredChannel(guildId, channelId) {
+    const data = readConfig();
+    if (!data.ignoredChannels?.[guildId]) return false;
+    const index = data.ignoredChannels[guildId].indexOf(channelId);
+    if (index !== -1) {
+      data.ignoredChannels[guildId].splice(index, 1);
+      writeConfig(data);
+      return true;
+    }
+    return false;
+  },
+  isIgnored(guildId, channelId) {
+    const ignored = this.getIgnoredChannels(guildId);
+    return ignored.includes(channelId);
   }
 };
