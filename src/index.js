@@ -1,46 +1,39 @@
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const config = require('./config');
-const guildConfig = require('./utils/guildConfig'); // Required for lock persistence
+const guildConfig = require('./utils/guildConfig');
+const logger = require('./utils/logger'); // Import logger
 
-// ✅ All necessary intents for logging, moderation, and locking
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,                // Basic guild info
-    GatewayIntentBits.GuildMessages,          // Message events (delete, update, bulk delete)
-    GatewayIntentBits.MessageContent,         // Read message content for logs
-    GatewayIntentBits.GuildMembers,           // Member join/leave/update
-    GatewayIntentBits.GuildVoiceStates,       // Voice state updates
-    GatewayIntentBits.GuildMessageReactions,  // Future reaction logs
-    GatewayIntentBits.GuildModeration,        // Future audit log events
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessages, // ✅ Add to receive DMs
+    GatewayIntentBits.GuildModeration,
   ]
 });
 
 client.commands = new Collection();
 
-// ─────────────────────────────────────────────────────────────
-// Helper function to unlock a channel (used by auto‑unlock)
+// Helper function to unlock a channel (unchanged, but add logging)
 async function unlockChannel(guildId, channelId, reason = 'Auto‑unlock (duration expired)') {
   try {
     const guild = await client.guilds.fetch(guildId);
     if (!guild) return;
     const channel = await guild.channels.fetch(channelId);
     if (!channel) return;
-
-    // Remove the @everyone SendMessages overwrite
-    await channel.permissionOverwrites.edit(guild.roles.everyone, {
-      SendMessages: null
-    }, { reason });
-
-    // Remove from config
+    await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: null }, { reason });
     const configData = guildConfig.get(guildId) || {};
     if (configData.lockedChannels && configData.lockedChannels[channelId]) {
       delete configData.lockedChannels[channelId];
       guildConfig.set(guildId, 'lockedChannels', configData.lockedChannels);
     }
-
-    // Optional: send an unlock message in the channel
+    logger.info(`Auto‑unlocked channel ${channelId} in guild ${guildId}`);
     const embed = new EmbedBuilder()
       .setColor('Green')
       .setTitle('🔓 Channel Unlocked')
@@ -48,14 +41,14 @@ async function unlockChannel(guildId, channelId, reason = 'Auto‑unlock (durati
       .setTimestamp();
     await channel.send({ embeds: [embed] }).catch(() => {});
   } catch (error) {
-    console.error(`❌ Failed to auto‑unlock channel ${channelId}:`, error);
+    logger.error(`Failed to auto‑unlock channel ${channelId}:`, error);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Load commands
+// Load commands (add logging)
 const commandsPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(commandsPath);
+logger.info(`Loading commands from ${commandsPath}`);
 for (const folder of commandFolders) {
   const folderPath = path.join(commandsPath, folder);
   const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
@@ -65,44 +58,68 @@ for (const folder of commandFolders) {
     command.category = folder;
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command);
+      logger.debug(`Loaded command: ${command.data.name} (category: ${folder})`);
+    } else {
+      logger.warn(`Command at ${filePath} missing required properties`);
     }
   }
 }
+logger.info(`Loaded ${client.commands.size} commands`);
 
-// Load events
+// Load events (add logging)
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+logger.info(`Loading events from ${eventsPath}`);
 for (const file of eventFiles) {
   const filePath = path.join(eventsPath, file);
   const event = require(filePath);
-  if (event.once) client.once(event.name, (...args) => event.execute(...args));
-  else client.on(event.name, (...args) => event.execute(...args));
+  if (event.once) {
+    client.once(event.name, (...args) => event.execute(...args));
+    logger.debug(`Loaded once event: ${event.name}`);
+  } else {
+    client.on(event.name, (...args) => event.execute(...args));
+    logger.debug(`Loaded on event: ${event.name}`);
+  }
 }
+logger.info(`Loaded ${eventFiles.length} event handlers`);
 
-// ─────────────────────────────────────────────────────────────
-// Restore scheduled unlocks from previous sessions
-const allGuildConfigs = guildConfig.getAll(); // Requires getAll() method in guildConfig.js
+// Restore scheduled unlocks (with logging)
+const allGuildConfigs = guildConfig.getAll();
 const now = Date.now();
-
+let scheduledCount = 0;
 for (const [guildId, guildData] of Object.entries(allGuildConfigs)) {
   if (guildData.lockedChannels) {
     for (const [channelId, lockInfo] of Object.entries(guildData.lockedChannels)) {
-      // If there's a lockedUntil timestamp and it's in the future
       if (lockInfo.lockedUntil && lockInfo.lockedUntil > now) {
         const delay = lockInfo.lockedUntil - now;
         setTimeout(() => {
           unlockChannel(guildId, channelId, 'Auto‑unlock (duration expired)');
         }, delay);
-        console.log(`⏰ Scheduled unlock for channel ${channelId} in ${Math.round(delay / 1000 / 60)} minutes.`);
-      }
-      // If it's already passed, unlock immediately
-      else if (lockInfo.lockedUntil && lockInfo.lockedUntil <= now) {
+        scheduledCount++;
+        logger.debug(`Scheduled unlock for channel ${channelId} in ${Math.round(delay / 1000 / 60)} minutes`);
+      } else if (lockInfo.lockedUntil && lockInfo.lockedUntil <= now) {
         unlockChannel(guildId, channelId, 'Auto‑unlock (duration expired)');
       }
     }
   }
 }
+logger.info(`Restored ${scheduledCount} scheduled unlocks`);
 
-// ─────────────────────────────────────────────────────────────
-// Log in
-client.login(config.token);
+// Log when bot is ready
+client.once('ready', () => {
+  logger.info(`✅ Logged in as ${client.user.tag} (ID: ${client.user.id})`);
+  logger.info(`Bot is in ${client.guilds.cache.size} guilds`);
+});
+
+// Log any errors
+client.on('error', (error) => {
+  logger.error('Client error:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  logger.error('Unhandled rejection:', error);
+});
+
+client.login(config.token).catch(error => {
+  logger.error('Failed to login:', error);
+});
