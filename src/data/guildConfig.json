@@ -14,8 +14,12 @@
       "roleDelete": true,
       "roleCreate": true,
       "roleUpdate": true,
-      "inviteCreate": true
-    }
+      "inviteCreate": true,
+      "messageBulkDelete": true,
+      "voiceStateUpdate": true,
+      "interactionCreate": true
+    },
+    "lockedChannels": {}
   },
   "1127918387893375048": {
     "logChannel": "1477000863116689521",
@@ -23,5 +27,26 @@
       "messageBulkDelete": true,
       "messageDelete": true
     }
+  },
+  "1231083530889461780": {
+    "logChannel": "1478189485803176006",
+    "logEvents": {
+      "messageDelete": true,
+      "messageUpdate": true,
+      "guildMemberAdd": true,
+      "guildMemberRemove": true,
+      "guildMemberUpdate": true,
+      "channelCreate": true,
+      "channelDelete": true,
+      "channelUpdate": true,
+      "roleCreate": true,
+      "roleDelete": true,
+      "roleUpdate": true,
+      "inviteCreate": true,
+      "voiceStateUpdate": true,
+      "messageBulkDelete": true,
+      "interactionCreate": true
+    },
+    "gildId": "1231083530889461780"
   }
 }
