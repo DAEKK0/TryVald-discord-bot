@@ -45,6 +45,13 @@ module.exports = {
               ...Object.entries(AVAILABLE_EVENTS).map(([value, name]) => ({ name, value }))
             )))
     .addSubcommand(sub =>
+      sub.setName('toggleall')
+        .setDescription('Enable or disable all log events at once.')
+        .addBooleanOption(opt =>
+          opt.setName('enable')
+            .setDescription('True to enable all, false to disable all')
+            .setRequired(true)))
+    .addSubcommand(sub =>
       sub.setName('list')
         .setDescription('Show current log settings.'))
     .addSubcommand(sub =>
@@ -78,6 +85,23 @@ module.exports = {
       guildConfig.set(guildId, 'logEvents', events);
       await interaction.reply({
         content: `✅ Event **${eventKey}** is now ${newState ? 'enabled' : 'disabled'}.`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    else if (sub === 'toggleall') {
+      if (!current.logChannel) {
+        return interaction.reply({ content: '❌ Please set a log channel first using `/log channel`.', flags: MessageFlags.Ephemeral });
+      }
+      const enable = interaction.options.getBoolean('enable');
+      const events = {};
+      // Set all events to the desired state
+      for (const key of Object.keys(AVAILABLE_EVENTS)) {
+        events[key] = enable;
+      }
+      guildConfig.set(guildId, 'logEvents', events);
+      await interaction.reply({
+        content: `✅ All log events are now **${enable ? 'enabled' : 'disabled'}**.`,
         flags: MessageFlags.Ephemeral
       });
     }
