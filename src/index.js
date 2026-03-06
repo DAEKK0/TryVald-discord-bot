@@ -1,3 +1,4 @@
+const scheduler = require('./utils/scheduler');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -119,6 +120,9 @@ client.on('error', (error) => {
 process.on('unhandledRejection', (error) => {
   logger.error('Unhandled rejection:', error);
 });
+
+// Load scheduled messages
+scheduler.loadAllSchedules(client);
 
 client.login(config.token).catch(error => {
   logger.error('Failed to login:', error);
