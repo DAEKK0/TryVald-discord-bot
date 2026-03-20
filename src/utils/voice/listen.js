@@ -2,25 +2,17 @@ const { EndBehaviorType, createAudioResource, StreamType } = require('@discordjs
 const prism = require('prism-media');
 const { Readable } = require('stream');
 const axios = require('axios');
-const FormData = require('form-data');
 const { callDeepSeek } = require('../deepseek');
 const { getTTSAudio } = require('../tts');
 
-// Wit.ai endpoint
-const WIT_AI_URL = 'https://api.wit.ai/speech';
+// Wit.ai endpoint (versioned, expecting raw audio)
+const WIT_AI_URL = 'https://api.wit.ai/speech?v=20231231';
 
 // Store active listening states per guild
 const listeningState = new Map();
 // Per-user concurrency guard
 const processingUsers = new Set();
 
-/**
- * Starts listening to voice activity.
- * @param {VoiceConnection} connection
- * @param {AudioPlayer} player
- * @param {string} guildId
- * @param {Client} client
- */
 async function startListening(connection, player, guildId, client) {
   if (listeningState.has(guildId)) return;
 
@@ -53,8 +45,8 @@ async function startListening(connection, player, guildId, client) {
       },
     });
 
-    // Decode Opus → PCM
-    const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
+    // Decode Opus → PCM – use auto frame size to avoid corruption errors
+    const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: null });
     const pcmStream = audioStream.pipe(opusDecoder);
 
     pcmStream.on('error', (err) => {
@@ -73,18 +65,16 @@ async function startListening(connection, player, guildId, client) {
         // Convert PCM → WAV
         const wavBuffer = pcmToWav(Buffer.concat(chunks), 48000, 2);
 
-        // --- Step 1: Speech‑to‑text (Wit.ai) ---
+        // --- Speech‑to‑text (Wit.ai) ---
         let transcript;
         try {
-          const form = new FormData();
-          form.append('file', wavBuffer, { filename: 'audio.wav', contentType: 'audio/wav' });
-          const res = await axios.post(WIT_AI_URL, form, {
+          // Send raw WAV binary, not multipart
+          const res = await axios.post(WIT_AI_URL, wavBuffer, {
             headers: {
               'Authorization': `Bearer ${process.env.WIT_AI_TOKEN}`,
-              ...form.getHeaders(),
+              'Content-Type': 'audio/wav',
             },
           });
-          // Wit.ai returns a JSON with 'text' field
           transcript = res.data.text;
         } catch (err) {
           console.error('Wit.ai error:', err.response?.data || err.message);
@@ -94,12 +84,12 @@ async function startListening(connection, player, guildId, client) {
         if (!transcript?.trim()) return;
         console.log(`[${guildId}] ${user.tag}: ${transcript}`);
 
-        // --- Step 2: AI response (DeepSeek) ---
+        // --- AI response (DeepSeek) ---
         const reply = await callDeepSeek(transcript);
         if (!reply) return;
         console.log(`[${guildId}] Bot reply: ${reply}`);
 
-        // --- Step 3: Text‑to‑speech (gTTS) ---
+        // --- Text‑to‑speech (gTTS) ---
         let audioStreamTTS;
         try {
           audioStreamTTS = await getTTSAudio(reply);
