@@ -9,6 +9,34 @@ const WIT_AI_URL = 'https://api.wit.ai/speech?v=20231231';
 const listeningState = new Map();
 const processingUsers = new Set();
 
+// Resample PCM to a new sample rate (simple linear interpolation)
+function resamplePcm(pcmBuffer, inRate, outRate, channels) {
+  if (inRate === outRate) return pcmBuffer;
+  const ratio = inRate / outRate;
+  const outLength = Math.floor(pcmBuffer.length / ratio / channels) * channels;
+  const outBuffer = Buffer.alloc(outLength * 2);
+  for (let i = 0; i < outLength / channels; i++) {
+    const srcIndex = Math.floor(i * ratio) * channels * 2;
+    for (let ch = 0; ch < channels; ch++) {
+      const sample = pcmBuffer.readInt16LE(srcIndex + ch * 2);
+      outBuffer.writeInt16LE(sample, (i * channels + ch) * 2);
+    }
+  }
+  return outBuffer;
+}
+
+// Convert stereo PCM to mono by averaging channels
+function stereoToMono(stereoBuffer) {
+  const monoBuffer = Buffer.alloc(stereoBuffer.length / 2);
+  for (let i = 0; i < stereoBuffer.length / 4; i++) {
+    const left = stereoBuffer.readInt16LE(i * 4);
+    const right = stereoBuffer.readInt16LE(i * 4 + 2);
+    const mono = Math.floor((left + right) / 2);
+    monoBuffer.writeInt16LE(mono, i * 2);
+  }
+  return monoBuffer;
+}
+
 async function startListening(connection, player, guildId, client) {
   if (listeningState.has(guildId)) return;
 
@@ -54,26 +82,21 @@ async function startListening(connection, player, guildId, client) {
 
         console.log(`Received ${packets.length} Opus packets, first size: ${packets[0]?.length}`);
 
-        // Attempt decoding
+        // Decode Opus to PCM (48kHz stereo)
         let pcmBuffer = null;
-        let decodeError = null;
 
         // Try prism first
         try {
           const decoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: null });
           const pcmChunks = [];
           decoder.on('data', (chunk) => pcmChunks.push(chunk));
-          decoder.on('error', (err) => { decodeError = err; });
+          decoder.on('error', (err) => { throw err; });
           for (const packet of packets) decoder.write(packet);
           decoder.end();
           pcmBuffer = Buffer.concat(pcmChunks);
-          if (pcmBuffer.length > 0) {
-            console.log(`Prism decoded: ${pcmBuffer.length} bytes PCM`);
-          } else {
-            console.log('Prism decoded 0 bytes');
-          }
+          console.log(`Prism decoded: ${pcmBuffer.length} bytes PCM`);
         } catch (err) {
-          console.error('Prism exception:', err);
+          console.error('Prism decode error:', err.message);
         }
 
         // Fallback to OpusEncoder
@@ -88,7 +111,7 @@ async function startListening(connection, player, guildId, client) {
             pcmBuffer = Buffer.concat(pcmChunks);
             console.log(`OpusEncoder decoded: ${pcmBuffer.length} bytes PCM`);
           } catch (err) {
-            console.error('OpusEncoder error:', err);
+            console.error('OpusEncoder decode error:', err.message);
           }
         }
 
@@ -98,21 +121,26 @@ async function startListening(connection, player, guildId, client) {
           return;
         }
 
-        const wavBuffer = pcmToWav(pcmBuffer, 48000, 2);
+        // Convert to mono 16kHz
+        const monoPcm = stereoToMono(pcmBuffer);
+        const resampledPcm = resamplePcm(monoPcm, 48000, 16000, 1);
+        console.log(`Resampled to 16kHz mono, size: ${resampledPcm.length} bytes`);
+
+        // Create WAV (16kHz, mono)
+        const wavBuffer = pcmToWav(resampledPcm, 16000, 1);
         console.log(`WAV buffer size: ${wavBuffer.length} bytes`);
 
-        // --- Wit.ai STT ---
+        // Send to Wit.ai
         let transcript;
         try {
-          console.log('Sending to Wit.ai...');
           const res = await axios.post(WIT_AI_URL, wavBuffer, {
             headers: {
               'Authorization': `Bearer ${process.env.WIT_AI_TOKEN}`,
               'Content-Type': 'audio/wav',
             },
           });
+          console.log('Wit.ai response:', res.data);
           transcript = res.data.text;
-          console.log(`Wit.ai response: ${transcript}`);
         } catch (err) {
           console.error('Wit.ai error:', err.response?.data || err.message);
           processingUsers.delete(userId);
@@ -127,7 +155,7 @@ async function startListening(connection, player, guildId, client) {
 
         console.log(`[${guildId}] ${user.tag}: ${transcript}`);
 
-        // --- DeepSeek AI ---
+        // DeepSeek AI
         const reply = await callDeepSeek(transcript);
         if (!reply) {
           processingUsers.delete(userId);
@@ -135,7 +163,7 @@ async function startListening(connection, player, guildId, client) {
         }
         console.log(`[${guildId}] Bot reply: ${reply}`);
 
-        // --- TTS ---
+        // TTS
         let audioStreamTTS;
         try {
           audioStreamTTS = await getTTSAudio(reply);
