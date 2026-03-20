@@ -1,16 +1,12 @@
 const { EndBehaviorType, createAudioResource, StreamType } = require('@discordjs/voice');
-const prism = require('prism-media');
+const { OpusEncoder } = require('@discordjs/opus');
 const { Readable } = require('stream');
 const axios = require('axios');
 const { callDeepSeek } = require('../deepseek');
 const { getTTSAudio } = require('../tts');
 
-// Wit.ai endpoint (versioned, expecting raw audio)
 const WIT_AI_URL = 'https://api.wit.ai/speech?v=20231231';
-
-// Store active listening states per guild
 const listeningState = new Map();
-// Per-user concurrency guard
 const processingUsers = new Set();
 
 async function startListening(connection, player, guildId, client) {
@@ -37,7 +33,6 @@ async function startListening(connection, player, guildId, client) {
 
     console.log(`🎙️ ${user.tag} started speaking`);
 
-    // Subscribe to audio stream
     const audioStream = connection.receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
@@ -45,30 +40,36 @@ async function startListening(connection, player, guildId, client) {
       },
     });
 
-    // Decode Opus → PCM – use auto frame size to avoid corruption errors
-    const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: null });
-    const pcmStream = audioStream.pipe(opusDecoder);
+    const opusEncoder = new OpusEncoder(48000, 2);
+    const pcmChunks = [];
+    let packets = 0;
 
-    pcmStream.on('error', (err) => {
-      console.error('PCM stream error:', err.message);
-      processingUsers.delete(userId);
+    audioStream.on('data', (opusPacket) => {
+      try {
+        const pcm = opusEncoder.decode(opusPacket);
+        pcmChunks.push(pcm);
+        packets++;
+      } catch (err) {
+        console.error('Opus decode error:', err.message);
+      }
     });
 
-    const chunks = [];
-    pcmStream.on('data', (chunk) => chunks.push(chunk));
-
-    pcmStream.on('end', async () => {
+    audioStream.on('end', async () => {
       try {
         if (!state.active) return;
-        if (chunks.length === 0) return;
+        if (pcmChunks.length === 0) {
+          processingUsers.delete(userId);
+          return;
+        }
 
-        // Convert PCM → WAV
-        const wavBuffer = pcmToWav(Buffer.concat(chunks), 48000, 2);
+        console.log(`Received ${packets} Opus packets, ${pcmChunks.length} PCM chunks`);
 
-        // --- Speech‑to‑text (Wit.ai) ---
+        const totalLength = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const pcmBuffer = Buffer.concat(pcmChunks, totalLength);
+        const wavBuffer = pcmToWav(pcmBuffer, 48000, 2);
+
         let transcript;
         try {
-          // Send raw WAV binary, not multipart
           const res = await axios.post(WIT_AI_URL, wavBuffer, {
             headers: {
               'Authorization': `Bearer ${process.env.WIT_AI_TOKEN}`,
@@ -78,33 +79,46 @@ async function startListening(connection, player, guildId, client) {
           transcript = res.data.text;
         } catch (err) {
           console.error('Wit.ai error:', err.response?.data || err.message);
+          processingUsers.delete(userId);
           return;
         }
 
-        if (!transcript?.trim()) return;
+        if (!transcript?.trim()) {
+          processingUsers.delete(userId);
+          return;
+        }
+
         console.log(`[${guildId}] ${user.tag}: ${transcript}`);
 
-        // --- AI response (DeepSeek) ---
         const reply = await callDeepSeek(transcript);
-        if (!reply) return;
+        if (!reply) {
+          processingUsers.delete(userId);
+          return;
+        }
         console.log(`[${guildId}] Bot reply: ${reply}`);
 
-        // --- Text‑to‑speech (gTTS) ---
         let audioStreamTTS;
         try {
           audioStreamTTS = await getTTSAudio(reply);
         } catch (err) {
           console.error('TTS error:', err.message);
+          processingUsers.delete(userId);
           return;
         }
 
-        // Play the audio
         const resource = createAudioResource(audioStreamTTS, { inputType: StreamType.Arbitrary });
         player.play(resource);
 
+      } catch (err) {
+        console.error('Voice pipeline error:', err);
       } finally {
         processingUsers.delete(userId);
       }
+    });
+
+    audioStream.on('error', (err) => {
+      console.error('Audio stream error:', err);
+      processingUsers.delete(userId);
     });
   });
 
@@ -127,11 +141,9 @@ function pcmToWav(pcmBuffer, sampleRate, channels) {
   const totalSize = 44 + dataSize;
   const wavBuffer = Buffer.alloc(totalSize);
 
-  // RIFF chunk
   wavBuffer.write('RIFF', 0);
   wavBuffer.writeUInt32LE(totalSize - 8, 4);
   wavBuffer.write('WAVE', 8);
-  // fmt subchunk
   wavBuffer.write('fmt ', 12);
   wavBuffer.writeUInt32LE(16, 16);
   wavBuffer.writeUInt16LE(1, 20);
@@ -140,11 +152,9 @@ function pcmToWav(pcmBuffer, sampleRate, channels) {
   wavBuffer.writeUInt32LE(byteRate, 28);
   wavBuffer.writeUInt16LE(blockAlign, 32);
   wavBuffer.writeUInt16LE(16, 34);
-  // data subchunk
   wavBuffer.write('data', 36);
   wavBuffer.writeUInt32LE(dataSize, 40);
   pcmBuffer.copy(wavBuffer, 44);
-
   return wavBuffer;
 }
 
