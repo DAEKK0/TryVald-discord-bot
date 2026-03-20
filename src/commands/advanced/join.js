@@ -1,6 +1,38 @@
+console.log('Join command loaded');
+
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  entersState,
+  VoiceConnectionStatus
+} = require('@discordjs/voice');
 const { startListening } = require('../../utils/voice/listen');
+const axios = require('axios');
+const { Readable } = require('stream');
+
+// Helper to play a short TTS message (uses Google TTS)
+async function playWelcomeMessage(player, text) {
+  try {
+    const GOOGLE_TTS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
+    const response = await axios.post(
+      `${GOOGLE_TTS_URL}?key=${process.env.GOOGLE_API_KEY}`,
+      {
+        input: { text },
+        voice: { languageCode: 'fr-FR', name: 'fr-FR-Neural2-A' },
+        audioConfig: { audioEncoding: 'MP3' }
+      }
+    );
+    const audioBuffer = Buffer.from(response.data.audioContent, 'base64');
+    const audioStream = Readable.from(audioBuffer);
+    const resource = createAudioResource(audioStream, { inputType: 'mp3' });
+    player.play(resource);
+    console.log('Welcome message played');
+  } catch (err) {
+    console.error('Failed to play welcome message:', err.message);
+  }
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -55,7 +87,12 @@ module.exports = {
       const player = createAudioPlayer();
       connection.subscribe(player);
 
-      // Start listening pipeline
+      // Play a welcome message after 1 second to confirm audio output
+      setTimeout(() => {
+        playWelcomeMessage(player, 'Je suis connecté au salon vocal.');
+      }, 1000);
+
+      // Start listening pipeline (speech‑to‑text, AI, TTS)
       await startListening(connection, player, interaction.guild.id, interaction.client);
 
       await interaction.editReply(`🎤 Joined <#${voiceChannel.id}> and listening!`);
