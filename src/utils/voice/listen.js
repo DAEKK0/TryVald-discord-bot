@@ -9,14 +9,16 @@ const WIT_AI_URL = 'https://api.wit.ai/speech?v=20231231';
 const listeningState = new Map();
 const processingUsers = new Set();
 
-// Resample PCM to a new sample rate
+// Safe resampling with bounds checking
 function resamplePcm(pcmBuffer, inRate, outRate, channels) {
   if (inRate === outRate) return pcmBuffer;
-  const ratio = inRate / outRate;
-  const outLength = Math.floor(pcmBuffer.length / ratio / channels) * channels;
-  const outBuffer = Buffer.alloc(outLength * 2);
-  for (let i = 0; i < outLength / channels; i++) {
-    const srcIndex = Math.floor(i * ratio) * channels * 2;
+  const samplesPerChannel = pcmBuffer.length / (channels * 2);
+  const outSamples = Math.floor(samplesPerChannel * outRate / inRate);
+  const outBuffer = Buffer.alloc(outSamples * channels * 2);
+  const step = inRate / outRate;
+  for (let i = 0; i < outSamples; i++) {
+    const srcIndex = Math.floor(i * step) * channels * 2;
+    if (srcIndex + channels * 2 > pcmBuffer.length) break;
     for (let ch = 0; ch < channels; ch++) {
       const sample = pcmBuffer.readInt16LE(srcIndex + ch * 2);
       outBuffer.writeInt16LE(sample, (i * channels + ch) * 2);
@@ -25,7 +27,7 @@ function resamplePcm(pcmBuffer, inRate, outRate, channels) {
   return outBuffer;
 }
 
-// Convert stereo PCM to mono by averaging channels
+// Convert stereo PCM to mono by averaging
 function stereoToMono(stereoBuffer) {
   const monoBuffer = Buffer.alloc(stereoBuffer.length / 2);
   for (let i = 0; i < stereoBuffer.length / 4; i++) {
@@ -68,7 +70,6 @@ async function startListening(connection, player, guildId, client) {
       },
     });
 
-    // We'll collect raw packets and also try decoding per packet
     const packets = [];
     let firstPacket = null;
     audioStream.on('data', (packet) => {
@@ -90,7 +91,7 @@ async function startListening(connection, player, guildId, client) {
 
         console.log(`Received ${packets.length} Opus packets`);
 
-        // Try to decode each packet individually to see if any succeed
+        // Attempt to decode packets individually to verify they are valid
         let anyValid = false;
         const pcmChunks = [];
         const encoder = new OpusEncoder(48000, 2);
@@ -110,7 +111,7 @@ async function startListening(connection, player, guildId, client) {
           return;
         }
 
-        // Now try full stream decode using prism (with frameSize: 960)
+        // Full stream decode using prism
         let pcmBuffer = null;
         try {
           const decoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
@@ -123,7 +124,7 @@ async function startListening(connection, player, guildId, client) {
           console.log(`Full stream prism decode: ${pcmBuffer.length} bytes PCM`);
         } catch (err) {
           console.error('Full stream prism decode error:', err.message);
-          // Fallback to per-packet collected chunks
+          // Fallback to individually decoded packets
           if (pcmChunks.length) {
             pcmBuffer = Buffer.concat(pcmChunks);
             console.log(`Using per-packet decoded PCM (${pcmBuffer.length} bytes)`);
@@ -141,6 +142,7 @@ async function startListening(connection, player, guildId, client) {
 
         // Convert to mono 16kHz
         const monoPcm = stereoToMono(pcmBuffer);
+        console.log(`Mono PCM size: ${monoPcm.length} bytes`);
         const resampledPcm = resamplePcm(monoPcm, 48000, 16000, 1);
         console.log(`Resampled to 16kHz mono, size: ${resampledPcm.length} bytes`);
 
