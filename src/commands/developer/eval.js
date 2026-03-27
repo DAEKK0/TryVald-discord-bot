@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, codeBlock } = require('discord.js');
 const util = require('util');
 const config = require('../../config');
-const vm = require('vm'); // ← consider switching to vm for better isolation
+const vm = require('vm');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,12 +25,11 @@ module.exports = {
       return interaction.editReply('Could not fetch message. Wrong ID or not in this channel?');
     }
 
-    // Better code extraction
     const codeMatch = message.content.match(/```(?:js|javascript)?\n?([\s\S]*?)\n?```/i);
     const code = codeMatch?.[1]?.trim() || message.content.trim();
     if (!code) return interaction.editReply('No code found in that message.');
 
-    // Optional: simple dangerous keyword check
+    // Dangerous keyword check
     const dangerous = ['process.exit', 'fs.', 'child_process', 'token', 'DISCORD_TOKEN'];
     if (dangerous.some(d => code.toLowerCase().includes(d))) {
       return interaction.editReply('Dangerous keywords detected. Aborted.');
@@ -45,14 +44,16 @@ module.exports = {
 
     let result, error = null;
     try {
-      // Option A: keep Function (current)
+      //
+      /*
       const fn = new Function('interaction', 'client', 'console', `return (async () => { ${code} })();`);
       result = await fn(interaction, interaction.client, console); // pass useful context
+      */
 
-      // Option B: safer vm context (recommended long-term)
-      // const script = new vm.Script(code);
-      // const context = vm.createContext({ interaction, client: interaction.client, console, require });
-      // result = await script.runInContext(context);
+      // vm context 
+      const script = new vm.Script(code);
+      const context = vm.createContext({ interaction, client: interaction.client, console, require });
+      result = await script.runInContext(context);
 
     } catch (e) {
       error = e;

@@ -13,7 +13,7 @@ module.exports = {
     const guild = interaction.guild;
     const user = interaction.user;
 
-    // Check if a ticket channel already exists for this user (optional)
+    // Check if a ticket channel already exists for the user
     const existingChannel = guild.channels.cache.find(c => c.name === `ticket-${user.username.toLowerCase()}`);
     if (existingChannel) {
       return interaction.reply({ content: `❌ You already have a ticket: ${existingChannel}`, ephemeral: true });
@@ -40,10 +40,12 @@ module.exports = {
             allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
           },
           // Add role for support staff (optional)
-          // {
-          //   id: 'support_role_id',
-          //   allow: [PermissionFlagsBits.ViewChannel],
-          // },
+          /*
+          {
+            id: 'support_role_id',
+            allow: [PermissionFlagsBits.ViewChannel],
+          },
+          */
         ],
       });
 
@@ -65,10 +67,6 @@ module.exports = {
 
       await interaction.editReply({ content: `✅ Ticket created: ${channel}` });
 
-      // Handle close button (we'll add a collector in the same file or via event)
-      // For simplicity, you can create a button collector in the channel's first message,
-      // or better, use an interactionCreate handler for customId starting with 'close_ticket_'.
-      // We'll show a simple collector approach here.
       const message = await channel.messages.fetch({ limit: 1 }).then(m => m.first());
       const collector = message.createMessageComponentCollector({
         filter: i => i.customId.startsWith('close_ticket_') && (i.member.permissions.has(PermissionFlagsBits.Administrator) || i.user.id === user.id),

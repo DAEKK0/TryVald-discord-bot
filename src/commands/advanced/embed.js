@@ -29,7 +29,7 @@ module.exports = {
   async execute(interaction) {
     const title = interaction.options.getString('title');
     const description = interaction.options.getString('description');
-    const color = interaction.options.getString('color') || '#3498db';
+    const color = interaction.options.getString('color') || '#28ad45';
     const footer = interaction.options.getString('footer');
     const image = interaction.options.getString('image');
 

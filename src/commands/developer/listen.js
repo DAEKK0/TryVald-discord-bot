@@ -12,6 +12,7 @@ module.exports = {
         .setDescription('The ID of the server to listen to')
         .setRequired(true)),
   async execute(interaction) {
+    
     // Owner check
     if (interaction.user.id !== config.ownerId) {
       return interaction.reply({ content: '❌ Only the bot owner can use this command.', flags: MessageFlags.Ephemeral });

@@ -59,7 +59,6 @@ module.exports = {
 
     const save = () => guildConfig.set(guildId, 'autoRole', config.autoRole);
 
-    // Helper to check if bot can assign a role
     const canAssign = (role) => {
       const botMember = interaction.guild.members.me;
       return role.editable && botMember.roles.highest.comparePositionTo(role) > 0;

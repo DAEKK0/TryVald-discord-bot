@@ -21,7 +21,7 @@ module.exports = {
       const data = await response.json();
 
       const first = data[0];
-      const meanings = first.meanings.slice(0, 3); // limit to 3 meanings
+      const meanings = first.meanings.slice(0, 3); // 3 meanings limit
 
       const embed = new EmbedBuilder()
         .setColor('Random')

@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 
-// Helper to parse duration strings like "10m", "2h", "1d"
+// parse duration strings 
 function parseDuration(durationStr) {
   const regex = /^(\d+)([smhd])$/;
   const match = durationStr.match(regex);
@@ -39,7 +39,7 @@ module.exports = {
       return interaction.reply({ content: '❌ That user is not in this server.', flags: MessageFlags.Ephemeral });
     }
 
-    // Check if the bot can mute this user (role hierarchy)
+    // Role hierarchy check
     if (!member.moderatable) {
       return interaction.reply({ content: '❌ I cannot mute that user. They may have higher permissions than me.', flags: MessageFlags.Ephemeral });
     }

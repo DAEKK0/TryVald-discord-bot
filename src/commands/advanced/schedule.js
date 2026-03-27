@@ -2,12 +2,12 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder, Mes
 const guildConfig = require('../../utils/guildConfig');
 const scheduler = require('../../utils/scheduler');
 
-// Helper to generate a unique ID
+// generate a unique ID
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
-// Helper to convert 12-hour time to 24-hour for cron
+// convert 12-hour time to 24-hour for cron
 function convertTo24Hour(hour, minute, ampm) {
   let hour24 = hour;
   if (ampm === 'PM' && hour !== 12) hour24 += 12;
@@ -15,7 +15,7 @@ function convertTo24Hour(hour, minute, ampm) {
   return { minute, hour: hour24 };
 }
 
-// Helper to get day of week number (0=Sunday, 6=Saturday) for cron
+// get day of week number (0=Sunday, 6=Saturday) for cron
 function dayToCronDay(day) {
   const days = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
   return days[day.toLowerCase()];
@@ -70,7 +70,9 @@ module.exports = {
           opt.setName('message')
             .setDescription('Message text')
             .setRequired(true))
-        // Optional options after all required
+
+        // Optional options
+
         .addStringOption(opt =>
           opt.setName('date')
             .setDescription('Date for once (YYYY-MM-DD, e.g. 2025-12-25)')
@@ -156,7 +158,6 @@ module.exports = {
       const embedImage = interaction.options.getString('embed_image');
       const embedFooter = interaction.options.getString('embed_footer');
 
-      // Validation
       if (frequency === 'once' && !dateStr) {
         return interaction.reply({ content: '❌ Date is required for one‑time schedule.', flags: MessageFlags.Ephemeral });
       }
@@ -164,7 +165,6 @@ module.exports = {
         return interaction.reply({ content: '❌ Day of week is required for weekly schedule.', flags: MessageFlags.Ephemeral });
       }
 
-      // Convert time to 24-hour
       const { minute: cronMin, hour: cronHour } = convertTo24Hour(hour, minute, ampm);
 
       let cronExpr = null;
@@ -176,7 +176,7 @@ module.exports = {
         if (!dateRegex.test(dateStr)) {
           return interaction.reply({ content: '❌ Invalid date format. Use YYYY-MM-DD (e.g., 2025-12-25).', flags: MessageFlags.Ephemeral });
         }
-        // Build ISO string (UTC)
+        // ISO string (UTC)
         scheduledTime = `${dateStr}T${cronHour.toString().padStart(2,'0')}:${cronMin.toString().padStart(2,'0')}:00.000Z`;
         const scheduledDate = new Date(scheduledTime);
         if (scheduledDate <= new Date()) {
@@ -189,10 +189,9 @@ module.exports = {
         cronExpr = `${cronMin} ${cronHour} * * ${cronDay}`;
       }
 
-      // Build embed data
       const embedData = {};
       if (embedTitle) embedData.title = embedTitle;
-      if (embedDesc) embedData.description = embedDesc; // optional extra description? We'll store it.
+      if (embedDesc) embedData.description = embedDesc;
       if (embedColor) embedData.color = embedColor;
       if (embedImage) embedData.image = embedImage;
       if (embedFooter) embedData.footer = embedFooter;
@@ -213,7 +212,6 @@ module.exports = {
         job.cron = cronExpr;
       }
 
-      // Save and schedule
       if (!config.scheduledMessages) config.scheduledMessages = [];
       config.scheduledMessages.push(job);
       guildConfig.set(guildId, 'scheduledMessages', config.scheduledMessages);

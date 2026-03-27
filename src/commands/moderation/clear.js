@@ -21,7 +21,7 @@ module.exports = {
 
     await interaction.reply({
       content: `🧹 Deleted **${deleted.size}** messages.`,
-      ephemeral: true // Only the command user sees this
+      ephemeral: true
     });
   },
 };

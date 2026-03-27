@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
-const config = require('../../config');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,7 +24,6 @@ module.exports = {
     const target = interaction.options.getString('target');
     const source = interaction.options.getString('source') || 'auto';
 
-    // Using LibreTranslate public instance (rate‑limited). For production, host your own or use Google Translate API.
     try {
       const response = await fetch('https://libretranslate.com/translate', {
         method: 'POST',

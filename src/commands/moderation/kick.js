@@ -13,7 +13,7 @@ module.exports = {
         .setDescription('Reason for the kick')
         .setRequired(false))
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers) // Restrict to users with kick permission
-    .setDMPermission(false), // Not usable in DMs
+    .setDMPermission(false),
   async execute(interaction) {
     const target = interaction.options.getUser('target');
     const reason = interaction.options.getString('reason') || 'No reason provided';
@@ -24,12 +24,12 @@ module.exports = {
       return interaction.reply({ content: '❌ That user is not in this server.', ephemeral: true });
     }
 
-    // Check if the bot can kick this member (role hierarchy)
+    // role hierarchy check
     if (!member.kickable) {
       return interaction.reply({ content: '❌ I cannot kick that user. They may have higher permissions than me.', ephemeral: true });
     }
 
-    // Attempt to DM the user before kicking (optional)
+    // DM the user before kicking (if possible)
     try {
       await target.send(`You have been kicked from **${interaction.guild.name}** for: ${reason}`);
     } catch (error) {

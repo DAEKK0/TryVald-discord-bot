@@ -23,7 +23,7 @@ module.exports = {
       return interaction.reply({ content: `❌ Command \`${commandName}\` not found.`, flags: MessageFlags.Ephemeral });
     }
 
-    // Find the file path
+    // Find file path
     const commandsPath = path.join(__dirname, '../../commands');
     const commandFolders = fs.readdirSync(commandsPath);
     let filePath = null;
@@ -44,7 +44,7 @@ module.exports = {
     }
 
     try {
-      // Delete from cache
+      // Cache delete
       delete require.cache[require.resolve(filePath)];
       const newCommand = require(filePath);
       interaction.client.commands.set(newCommand.data.name, newCommand);

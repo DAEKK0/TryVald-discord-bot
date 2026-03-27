@@ -5,7 +5,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('send')
     .setDescription('Send a message to a channel (owner only).')
-    .setDMPermission(true) // Allow in DMs
+    .setDMPermission(true)
     .addStringOption(option =>
       option.setName('server_id')
         .setDescription('The ID of the server')
@@ -19,6 +19,7 @@ module.exports = {
         .setDescription('The message content')
         .setRequired(true)),
   async execute(interaction) {
+    
     // Owner check
     if (interaction.user.id !== config.ownerId) {
       return interaction.reply({ content: '❌ Only the bot owner can use this command.', flags: MessageFlags.Ephemeral });

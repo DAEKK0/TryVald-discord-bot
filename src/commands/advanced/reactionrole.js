@@ -41,7 +41,6 @@ module.exports = {
     .setDescription('Manage reaction role panels.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .setDMPermission(false)
-    // Quick create (up to 6 roles)
     .addSubcommand(sub =>
       sub.setName('create')
         .setDescription('Create a reaction role panel (quick setup, up to 6 roles).')
@@ -60,7 +59,7 @@ module.exports = {
             .setRequired(true))
         .addStringOption(opt =>
           opt.setName('color')
-            .setDescription('Embed color (hex, e.g., #FF0000)')
+            .setDescription('Embed color (hex, e.g., #16804fe7)')
             .setRequired(false))
         .addStringOption(opt =>
           opt.setName('image')

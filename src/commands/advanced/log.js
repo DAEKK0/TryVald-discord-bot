@@ -64,9 +64,9 @@ module.exports = {
 
     if (sub === 'channel') {
       const channel = interaction.options.getChannel('channel');
-      // Save channel ID
+
       guildConfig.set(guildId, 'logChannel', channel.id);
-      // Ensure logEvents object exists
+
       if (!current.logEvents) {
         guildConfig.set(guildId, 'logEvents', {});
       }
@@ -78,7 +78,7 @@ module.exports = {
       if (!current.logChannel) {
         return interaction.reply({ content: '❌ Please set a log channel first using `/log channel`.', flags: MessageFlags.Ephemeral });
       }
-      // Get current events object
+
       const events = current.logEvents || {};
       const newState = !events[eventKey]; // toggle
       events[eventKey] = newState;
@@ -95,7 +95,7 @@ module.exports = {
       }
       const enable = interaction.options.getBoolean('enable');
       const events = {};
-      // Set all events to the desired state
+
       for (const key of Object.keys(AVAILABLE_EVENTS)) {
         events[key] = enable;
       }

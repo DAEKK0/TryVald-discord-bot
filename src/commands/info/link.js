@@ -14,6 +14,6 @@ module.exports = {
       .addFields({ name: 'Invite Link', value: link })
       .setFooter({ text: 'Requires Administrator permissions to function fully.' });
 
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }); // Ephemeral so only the user sees it
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }); 
   },
 };

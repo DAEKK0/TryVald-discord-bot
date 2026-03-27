@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder, MessageFlags } = require('discord.js');
 const guildConfig = require('../../utils/guildConfig');
 
-// Helper to parse duration strings like "10m", "2h", "1d"
+// parse duration strings
 function parseDuration(durationStr) {
   const regex = /^(\d+)([smhd])$/;
   const match = durationStr.match(regex);
@@ -52,7 +52,7 @@ module.exports = {
     const reason = interaction.options.getString('reason') || 'No reason provided';
     const guildId = interaction.guild.id;
 
-    // Check if bot has permission to manage the channel
+    // Channel managing bot permission check
     if (!targetChannel.manageable) {
       return interaction.reply({ content: '❌ I do not have permission to manage that channel.', flags: MessageFlags.Ephemeral });
     }
@@ -94,12 +94,11 @@ module.exports = {
       config.lockedChannels[targetChannel.id] = lockInfo;
       guildConfig.set(guildId, 'lockedChannels', config.lockedChannels);
 
-      // Schedule auto-unlock if duration set
+      // Auto-unlock schedule if duration set
       if (lockedUntil) {
         scheduleUnlock(interaction.client, guildId, targetChannel.id, lockedUntil);
       }
 
-      // Create embed
       const embed = new EmbedBuilder()
         .setColor('Red')
         .setTitle('🔒 Channel Locked')
@@ -137,8 +136,6 @@ module.exports = {
       delete config.lockedChannels[targetChannel.id];
       guildConfig.set(guildId, 'lockedChannels', config.lockedChannels);
 
-      // Cancel any pending timeout (if we stored the timeout ID, we'd need to track it globally; we'll handle by checking time on startup)
-
       const embed = new EmbedBuilder()
         .setColor('Green')
         .setTitle('🔓 Channel Unlocked')
@@ -154,7 +151,7 @@ module.exports = {
   },
 };
 
-// Helper function to schedule unlock (defined outside)
+// Helper function to schedule unlock
 function scheduleUnlock(client, guildId, channelId, unlockTime) {
   const now = Date.now();
   const delay = unlockTime - now;

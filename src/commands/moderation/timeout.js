@@ -32,7 +32,7 @@ module.exports = {
       return interaction.reply({ content: '❌ I cannot timeout that user.', ephemeral: true });
     }
 
-    // Parse duration (simple parser – you can expand)
+    // Parse duration
     const durationRegex = /^(\d+)([smhd])$/;
     const match = durationStr.match(durationRegex);
     if (!match) {
@@ -50,7 +50,7 @@ module.exports = {
     }
 
     // Discord timeouts max 28 days
-    const maxTimeout = 28 * 24 * 60 * 60 * 1000; // 28 days in ms
+    const maxTimeout = 28 * 24 * 60 * 60 * 1000; // is ms
     if (milliseconds > maxTimeout) {
       return interaction.reply({ content: '❌ Timeout cannot exceed 28 days.', ephemeral: true });
     }

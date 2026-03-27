@@ -13,10 +13,8 @@ module.exports = {
       return interaction.reply({ content: 'I am not in a voice channel.', ephemeral: true });
     }
 
-    // Stop the listening pipeline
     stopListening(interaction.guild.id);
 
-    // Destroy connection
     connection.destroy();
     interaction.client.voiceConnections.delete(interaction.guild.id);
 

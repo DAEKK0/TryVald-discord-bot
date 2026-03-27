@@ -12,6 +12,8 @@ A feature-rich Discord bot built with discord.js v14. Includes utility, moderati
 - **Developer**: `/eval`, `/reload`, `/stats`
 - **Help**: `/help` (with command‑specific details)
 
+A more detailed Feature list can be found on our [Official documentation][def]
+
 All commands are grouped by category and support ephemeral responses where appropriate.
 
 ## 📋 Prerequisites
@@ -26,8 +28,8 @@ All commands are grouped by category and support ephemeral responses where appro
 
 1. **Clone the repository** (or download the source)
    ```bash
-   git clone https://https://github.com/tryvald/Sanex-discord-bot
-   cd discord-bot
+   git clone https://https://github.com/DAEKK0/Tryvald-discord-bot
+   cd Tryvald-discord-bot
    ```
 2. **Install dependencies**
    ```bash
@@ -52,7 +54,7 @@ All commands are grouped by category and support ephemeral responses where appro
 ```
 This registers all commands with Discord. If `GUILD_ID` is set, commands are registered only for that guild (instant updates); otherwise they are registered globally (may take up to an hour).
 
-## ▶️ Running the Bot
+## ▶️ If you are interrested into forking the bot
 Start the bot with:
 
 ```bash
@@ -130,3 +132,6 @@ This project is licensed under the APACHE License – see the LICENSE file for d
 
 ## 🙋 Support
 If you have questions or need help, feel free to open an issue on GitHub or contact me on Discord (`16182062422638277253` this is actually my username xD ).
+
+
+[def]: valdtech.dedyn.io
